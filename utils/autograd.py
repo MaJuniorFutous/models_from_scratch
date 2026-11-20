@@ -17,7 +17,7 @@ class Node:
         self.label = label # debugging
 
     def __repr__(self) -> LiteralString:
-        return f"Node({self.data}, ops={self.ops}, label={self.label})"
+        return f"Node({self.data}, ops={self.ops}, grad={self.grad})"
 
     def __add__(self, other) -> "Node":
         other = other if isinstance(other, Node) else Node(data=other)
@@ -31,13 +31,13 @@ class Node:
 
         return out
 
-    def __sub__(self, other) -> "Node":
-        other = other if isinstance(other, Node) else Node(data=other)
-        out = Node(self.data - other.data, parents=(self, other), ops='-')
+    def __sub__(self, subtrahend) -> "Node":
+        subtrahend = subtrahend if isinstance(subtrahend, Node) else Node(data=subtrahend)
+        out = Node(self.data - subtrahend.data, parents=(self, subtrahend), ops='-')
 
         def backward() -> None:
             self.grad += out.grad
-            other.grad -= out.grad
+            subtrahend.grad -= out.grad
 
         out._backward = backward
 
@@ -55,25 +55,25 @@ class Node:
         
         return out
 
-    def __truediv__(self, other) -> "Node":
-        other = other if isinstance(other, Node) else Node(data=other)
-        out = Node(self.data / other.data, parents=(self, other), ops='/')
+    def __truediv__(self, denominator) -> "Node":
+        denominator = denominator if isinstance(denominator, Node) else Node(data=denominator)
+        out = Node(self.data / denominator.data, parents=(self, denominator), ops='/')
 
         # Bottom * derivative of top − Top * derivative of bottom, all divided by bottom squared.
         def backward() -> None:
-            self.grad += ((1*other.data - self.data*0) / other.data**2) * out.grad
-            other.grad += self.data * out.grad
+            self.grad += (1/denominator.data) * out.grad
+            denominator.grad += (-self.data/denominator.data**2) * out.grad
 
         out._backward = backward
         
         return out
 
-    def __pow__(self, other):
-        assert isinstance(other, (int, float)), "only supporting int/float powers for now"
-        out = Node(self.data**other, (self,), f'**{other}')
+    def __pow__(self, exponent):
+        assert isinstance(exponent, (int, float)), "only supporting int/float powers for now"
+        out = Node(self.data**exponent, (self,), f'**{exponent}')
         # dy/dx = x^2
         def backward() -> None:
-            self.grad += (other * self.data**(other-1)) * out.grad
+            self.grad += (exponent * self.data**(exponent-1)) * out.grad
 
         out._backward = backward
 
@@ -122,7 +122,9 @@ class Node:
 
     def __radd__(self, other) -> "Node": return self + other
 
-    def __rsub__(self, other) -> "Node": return self - other
+    def __rsub__(self, other) -> "Node": 
+        other = other if isinstance(other, Node) else Node(data=other)
+        return other - self
 
     def __gt__(self, other) -> bool:
         return self.data > (other.data if isinstance(other, Node) else other)
